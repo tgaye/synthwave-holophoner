@@ -1,0 +1,302 @@
+<!DOCTYPE html><html lang="en"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Synthwave Holophoner</title>
+    <script src="https://cdn.jsdelivr.net/npm/p5@1.8.0/lib/p5.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #0a0a1a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: 'Audiowide', cursive;
+        }
+        #canvas-container {
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: center;
+            position: relative;
+        }
+        #title {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #ff00ff;
+            text-shadow: 0 0 10px #00ffff;
+            font-size: 2rem;
+            z-index: 100;
+            opacity: 0.8;
+        }
+        #instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #00ffff;
+            text-shadow: 0 0 5px #ff00ff;
+            font-size: 1rem;
+            text-align: center;
+            z-index: 100;
+            opacity: 0.6;
+        }
+    </style>
+
+<base target="_self">
+</head>
+<body>
+    <div id="canvas-container">
+        <h1 id="title">SYNTHWAVE HOLOPHONER</h1>
+        <p id="instructions">Click/Drag to play • Move vertically to change pitch</p>
+    </div>
+
+    <script>
+        const sketch = (p) => {
+            let audioContext;
+            let oscillators = [];
+            let gainNodes = [];
+            let particles = [];
+            let holograms = [];
+            let baseFreq = 220;
+            let isPlaying = false;
+            let lastPlayTime = 0;
+            let bgHue = 220;
+            let bgSat = 80;
+            let bgBri = 10;
+            let discoBall;
+            let discoLights = [];
+            let grooveMode = false;
+            let autoPlayInterval;
+
+            p.preload = () => {
+                // Load any assets here if needed
+            };
+
+            p.setup = () => {
+                let canvas = p.createCanvas(p.windowWidth * 0.9, p.windowHeight * 0.8, p.WEBGL);
+                canvas.parent('canvas-container');
+                p.colorMode(p.HSB, 360, 100, 100, 1);
+                p.angleMode(p.DEGREES);
+
+                // Initialize audio context on first interaction
+                p.mouseClicked = () => {
+                    if (!audioContext) {
+                        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                        document.getElementById('instructions').textContent = "Click/Drag to play • Move vertically to change pitch • Press G for Groove Mode";
+                    }
+                };
+
+                // Create disco ball
+                discoBall = {
+                    pos: p.createVector(0, -p.height/3, 0),
+                    size: p.width/10,
+                    rotation: 0
+                };
+
+                // Create disco lights
+                for (let i = 0; i < 4; i++) {
+                    discoLights.push({
+                        pos: p.createVector(p.random(-p.width/2, p.width/2), p.random(-p.height/2, p.height/2), p.random(-200, 200)),
+                        size: p.random(20, 50),
+                        color: p.color(p.random(0, 360), 80, 100),
+                        speed: p.random(0.5, 2),
+                        angle: p.random(360)
+                    });
+                }
+            };
+
+            p.draw = () => {
+                // Animate background
+                bgHue = (bgHue + 0.1) % 360;
+                p.background(bgHue, bgSat, bgBri);
+
+                // Set up lighting
+                p.ambientLight(60);
+                p.pointLight(255, 255, 255, p.mouseX - p.width/2, p.mouseY - p.height/2, 100);
+                p.directionalLight(255, 255, 255, 0, -1, -1);
+
+                // Draw disco ball
+                p.push();
+                p.translate(discoBall.pos.x, discoBall.pos.y, discoBall.pos.z);
+                discoBall.rotation += 0.5;
+                p.rotateY(discoBall.rotation);
+                p.specularMaterial(255);
+                p.shininess(50);
+                p.sphere(discoBall.size);
+                p.pop();
+
+                // Draw disco lights
+                discoLights.forEach(light => {
+                    light.angle += light.speed;
+                    p.push();
+                    p.translate(
+                        light.pos.x + p.sin(light.angle) * 100,
+                        light.pos.y + p.cos(light.angle) * 100,
+                        light.pos.z
+                    );
+                    p.emissiveMaterial(light.color);
+                    p.sphere(light.size);
+                    p.pop();
+                });
+
+                // Update and draw particles
+                for (let i = particles.length - 1; i >= 0; i--) {
+                    let particle = particles[i];
+                    particle.pos.add(particle.vel);
+                    particle.vel.mult(0.98);
+                    particle.life--;
+
+                    p.push();
+                    p.translate(particle.x, particle.pos.y, particle.pos.z);
+                    p.emissiveMaterial(particle.color);
+                    p.sphere(particle.size);
+                    p.pop();
+
+                    if (particle.life <= 0) {
+                        particles.splice(i, 1);
+                    }
+                }
+
+                // Update and draw holograms
+                holograms.forEach(hologram => {
+                    hologram.size *= 1.01;
+                    hologram.opacity *= 0.97;
+
+                    p.push();
+                    p.translate(hologram.pos.x, hologram.pos.y, hologram.pos.z);
+                    p.rotateY(p.frameCount * 0.5);
+                    p.rotateX(p.frameCount * 0.3);
+                    p.noStroke();
+                    p.fill(hologram.color[0], hologram.color[1], hologram.color[2], hologram.opacity);
+                    
+                    if (hologram.type === 'box') {
+                        p.box(hologram.size);
+                    } else if (hologram.type === 'sphere') {
+                        p.sphere(hologram.size * 0.5);
+                    } else if (hologram.type === 'torus') {
+                        p.torus(hologram.size * 0.5, hologram.size * 0.2);
+                    }
+                    
+                    p.pop();
+                });
+
+                // Remove old holograms
+                holograms = holograms.filter(h => h.opacity > 0.05);
+
+                // Auto-play in groove mode
+                if (grooveMode && p.millis() - lastPlayTime > 300) {
+                    playNote(p.random(100, 400), p.random(-p.width/2, p.width/2), p.random(-p.height/2, p.height/2));
+                    lastPlayTime = p.millis();
+                }
+            };
+
+            function playNote(freq, x, y) {
+                if (!audioContext) return;
+
+                // Create oscillator
+                const osc = audioContext.createOscillator();
+                osc.type = ['sine', 'square', 'sawtooth', 'triangle'][p.floor(p.random(4))];
+                osc.frequency.setValueAtTime(freq, audioContext.currentTime);
+                
+                // Create gain node
+                const gain = audioContext.createGain();
+                gain.gain.setValueAtTime(0, audioContext.currentTime);
+                gain.gain.linearRampToValueAtTime(0.3, audioContext.currentTime + 0.05);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 1.5);
+                
+                // Connect and start
+                osc.connect(gain);
+                gain.connect(audioContext.destination);
+                osc.start();
+                osc.stop(audioContext.currentTime + 1.5);
+                
+                // Store references
+                oscillators.push(osc);
+                gainNodes.push(gain);
+                
+                // Create particles
+                const hue = (bgHue + 120 + p.random(-30, 30)) % 360;
+                for (let i = 0; i < 30; i++) {
+                    particles.push({
+                        pos: p.createVector(x || p.mouseX - p.width/2, y || p.mouseY - p.height/2, 0),
+                        vel: p.createVector(p.random(-3, 3), p.random(-3, 3), p.random(-1, 1)),
+                        size: p.random(2, 8),
+                        color: p.color(hue, 80, 100),
+                        life: p.random(30, 90)
+                    });
+                }
+                
+                // Create hologram
+                const types = ['box', 'sphere', 'torus'];
+                holograms.push({
+                    pos: p.createVector(x || p.mouseX - p.width/2, y || p.mouseY - p.height/2, 0),
+                    size: 10,
+                    color: [hue, 80, 100],
+                    opacity: 0.8,
+                    type: types[p.floor(p.random(types.length))]
+                });
+            }
+
+            p.mousePressed = () => {
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    document.getElementById('instructions').textContent = "Click/Drag to play • Move vertically to change pitch • Press G for Groove Mode";
+                }
+                
+                const freq = p.map(p.mouseY, 0, p.height, 880, 110);
+                playNote(freq);
+                isPlaying = true;
+            };
+
+            p.mouseDragged = () => {
+                if (!isPlaying) return;
+                
+                const freq = p.map(p.mouseY, 0, p.height, 880, 110);
+                if (oscillators.length > 0) {
+                    oscillators[oscillators.length - 1].frequency.setValueAtTime(freq, audioContext.currentTime);
+                }
+                
+                // Add trailing particles
+                if (p.frameCount % 3 === 0) {
+                    const hue = (bgHue + 120 + p.random(-30, 30)) % 360;
+                    particles.push({
+                        pos: p.createVector(p.mouseX - p.width/2, p.mouseY - p.height/2, 0),
+                        vel: p.createVector(p.random(-0.5, 0.5), p.random(-0.5, 0.5), p.random(-0.2, 0.2)),
+                        size: p.random(1, 4),
+                        color: p.color(hue, 80, 100),
+                        life: p.random(20, 60)
+                    });
+                }
+            };
+
+            p.mouseReleased = () => {
+                isPlaying = false;
+                if (gainNodes.length > 0) {
+                    gainNodes[gainNodes.length - 1].gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.5);
+                }
+            };
+
+            p.keyPressed = () => {
+                if (p.key === 'g' || p.key === 'G') {
+                    grooveMode = !grooveMode;
+                    document.getElementById('instructions').textContent = grooveMode ? 
+                        "GROOVE MODE ACTIVATED • Press G to stop" : 
+                        "Click/Drag to play • Move vertically to change pitch • Press G for Groove Mode";
+                }
+            };
+
+            p.windowResized = () => {
+                p.resizeCanvas(p.windowWidth * 0.9, p.windowHeight * 0.8);
+            };
+        };
+
+        new p5(sketch);
+    </script>
+
+</body></html>
